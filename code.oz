@@ -29,9 +29,26 @@ local
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
    fun {PartitionToTimedList Partition}
-      % TODO
-      nil
+      case Partition 
+      of nil then nil
+      [] X|Y then
+         {PartitionToTimedList X}|{PartitionToTimedList Y}
+      [] Name#Octave then
+         {NoteToExtended Partition}
+      [] duration(1:P seconds:D) then
+         {Duration {PartitionToTimedList P} D}
+      [] stretch(1:P factor:F)then
+         {TimeSet {PartitionToTimedList P} F}
+      [] drone(note:C amount:N) then 
+         {Drone {PartitionToTimedList C} N}
+      [] transpose(1:P semitones:I) then 
+         {Transpose {PartitionToTimedList P} I}
+      [] Atom then 
+         {NoteToExtended Partition}
+      else Partition
+      end
    end
+end
 
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
