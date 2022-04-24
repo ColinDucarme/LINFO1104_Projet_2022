@@ -1,7 +1,7 @@
 local
    % See project statement for API details.
    % !!! Please remove CWD identifier when submitting your project !!!
-   CWD = '/directory/to/the/project/template/' % Put here the **absolute** path to the project files
+   CWD = '/home/colin/Documents/Cours UCL/Q4/Concepts des langages de programmation/Projet/' % Put here the **absolute** path to the project files
    [Project] = {Link [CWD#'Project2022.ozf']}
    Time = {Link ['x-oz://boot/Time']}.1.getReferenceTime
 
@@ -109,9 +109,9 @@ local
       case Partition 
       of nil then nil
       [] X|Y then
-         {PartitionToTimedList X}|{PartitionToTimedList Y}
+         {Append {PartitionToTimedList X} {PartitionToTimedList Y}}
       [] Name#Octave then
-         {NoteToExtended Partition}
+         [{NoteToExtended Partition}]
       [] duration(1:P seconds:D) then
          {Duration {PartitionToTimedList P} D}
       [] stretch(1:P factor:F)then
@@ -119,10 +119,13 @@ local
       [] drone(note:C amount:N) then 
          {Drone {PartitionToTimedList C} N}
       [] transpose(1:P semitones:I) then 
-         {Transpose {PartitionToTimedList P} I}
+	 {Transpose {PartitionToTimedList P} I}
+      [] silence(duration:D) then
+	 [silence(duration:D)]
+      [] note(duration:D name:Name octave:Octave sharp:Boolean instrument:I) then
+	 [note(duration:D name:Name octave:Octave sharp:Boolean instrument:I)] 
       [] Atom then 
-         {NoteToExtended Partition}
-      else Partition
+         [{NoteToExtended Partition}]
       end
    end
 
@@ -153,13 +156,13 @@ local
       end
    in
       case FlatPartition of nil then nil
-      [] ES|FP then if {List.is ES} then {SamplingChord {Sampling ES} ES}|{Sammpling FP}
-		    else {Sampling ES}|{Sampling FP}
+      [] ES|FP then if {List.is ES} then {Append {SamplingChord {Sampling ES} ES} {Sampling FP}}
+		    else {Append {Sampling ES} {Sampling FP}}
 		    end
       [] EN then
-	 local Height Frequency in
-	    Height = {Height EN}
-	    Frequency = {Number.pow 2.0 {IntToFloat Height}/12.0}*440.0
+	 local H Frequency in
+	    H = {Height EN}
+	    Frequency = {Number.pow 2.0 {IntToFloat H}/12.0}*440.0
 	    {List.mapInd {List.make {FloatToInt 44100.0*EN.duration}} fun {$ I A} {Float.sin 2.0*3.1415926535*Frequency*{IntToFloat I}/44100.0}/2.0 end}
 	 end
       end
@@ -171,27 +174,28 @@ local
 	 [] H|T then {MergeSum T {List.zip Acc H fun {$ X Y} X + Y end}}
 	 end
       end
-      fun {MakeEqualLength L}
-	 fun {MaxLength L Acc}
-	    case L of nil then Acc
-	    [] H|T then {MaxLength T {Value.max {List.length H} Acc}}
-	    end
+      fun {MaxLength L Acc}
+	 case L of nil then Acc
+	 [] H|T then {MaxLength T {Value.max {List.length H} Acc}}
 	 end
-      in
+      end
+      fun {MakeEqualLength L MaxLength}
 	 case L of nil then nil
-	 [] H|T then {Append H {List.map {List.make {MaxLength L 0}} fun {$ X} 0.0 end }}|{MakeEqualLength T}
+	 [] H|T then {Append H {List.map {List.make MaxLength-{List.length H}} fun {$ X} 0.0 end }}|{MakeEqualLength T MaxLength}
 	 end
       end
       fun {MergeProduct P2T M}
 	 case M of nil then nil
-	 [] H|T then {MergeProduct H}|{MergeProduct T}
+	 [] H|T then {MergeProduct P2T H}|{MergeProduct P2T T}
 	 [] A#Mus then
-	    {List.map {Mix P2T Mus} fun {$ X} X/A end}
+	    {List.map {Mix P2T Mus} fun {$ X} X*A end}
 	 end
       end
    in
-      local L in
-	 L = {MakeEqualLength {MergeProduct P2T M}}
+      local L Products MaxL in
+	 Products = {MergeProduct P2T M}
+	 MaxL = {MaxLength Products 0}
+	 L = {MakeEqualLength Products MaxL}
 	 {MergeSum L {List.map {List.make {List.length L.1}} fun {$ X} 0.0 end }}
       end
    end
@@ -207,7 +211,7 @@ local
    end
    
    fun {Loop Duration Samples}
-      local MusicDuration in
+      local MusicDuration SamplesDuration in
 	 MusicDuration = {List.length Samples}
 	 SamplesDuration = {FloatToInt 44100.0*Duration}
 	 {Append {Repeat (SamplesDuration div MusicDuration) Samples} {List.take Samples (SamplesDuration mod MusicDuration)}}
@@ -224,7 +228,7 @@ local
    end
 
    fun {Echo P2T Delay Decay Music}
-      {Merge P2T [1.0#Music Decay#(partition(silence(duration:Decay))|M)] }
+      {Merge P2T [1.0#Music Decay#(partition(silence(duration:Delay))|Music)] }
    end
 
    fun {Fade In Out Samples}
