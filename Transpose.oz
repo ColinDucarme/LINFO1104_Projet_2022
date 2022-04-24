@@ -11,7 +11,7 @@ fun {Transpose P I}
     [] H|T then 
         {Transpose H I}|{Transpose T I}
     else
-        local N X Y Z in
+        local N X Y in
             N= [c c#2 d d#2 e f f#2 g g#2 a a#2 b] 
             if P.sharp==true then
 	            case P.name of c then X=I
@@ -33,7 +33,7 @@ fun {Transpose P I}
                 end
 	        end
             if X>11 then
-                Y = Z div 11
+                Y = X div 11
             else 
                 Y=0
             end
