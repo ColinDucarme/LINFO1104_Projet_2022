@@ -1,3 +1,7 @@
+% LINFO1104 Projet 2022 - Maestroz by
+% Ahadji Alex 80222000
+% Ducarme Colin 81472000
+
 local
    % See project statement for API details.
    % !!! Please remove CWD identifier when submitting your project !!!
@@ -6,12 +10,21 @@ local
    Time = {Link ['x-oz://boot/Time']}.1.getReferenceTime
 
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+   %                         PARTITIONTOTIMEDLIST SECTION                      %
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
    % Translate a note to the extended notation.
+   %
+   % Pre : Note : <note>
+   %
+   % Post : <extended note>
+   %
    fun {NoteToExtended Note}
       case Note
       of Name#Octave then
-         note(name:Name octave:Octave sharp:true duration:1.0 instrument:none)
+	 note(name:Name octave:Octave sharp:true duration:1.0 instrument:none)
+      [] silence then
+	 silence(duration:1.0)
       [] Atom then
          case {AtomToString Atom}
          of [_] then
@@ -27,28 +40,62 @@ local
    end
 
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-   fun {Duration Partion Duration}
-      {TimeSet Partion Duration/{TotalTime Partion 0.0}}
-   end
-
-   fun {TotalTime X Acc}
-      case X of nil then Acc
-      [] H|T then {TotalTime T Acc+H.duration}
-      end
-   end
-
+   %
+   % Stretch duration of P by a factor F.
+   %
+   % Pre : P : <flat partition>
+   %       F : <factor>
+   %
+   % Post : <flat partition>
+   %
    fun {TimeSet P F}
       case P of nil then nil 
-      [] H|T then 
-	 note(name:H.name
-	      octave:H.octave
-	      sharp:H.sharp
-	      duration:H.duration*F
-	      instrument: H.instrument)|{TimeSet T F}
+      [] H|T then
+	 case H of X|Y then
+	    {TimeSet X F}|{TimeSet Y F}
+	 [] silence(duration:D) then
+	    silence(duration:D*F)
+	 [] note(name:Name octave:Octave sharp:Boolean duration:D instrument:I) then
+	    note(name:Name
+		 octave:Octave
+		 sharp:Boolean
+		 duration:D*F
+		 instrument: I)|{TimeSet T F}
+	 end
       end
    end
-   
+
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Set duration of Partition to Duration.
+   %
+   % Pre : Partition : <flat partition>
+   %       Duration : <duration>
+   %
+   % Post : <flat partition>
+   %
+   fun {Duration Partition Duration}
+      fun {TotalTime X Acc}
+	 case X of nil then Acc
+	 [] H|T then
+	    if {List.is H} then {TotalTime T Acc+H.1.duration} % Case H is <extended chord>
+	    else {TotalTime T Acc+H.duration} % Case H is <extended note>
+	    end
+	 end
+      end
+   in
+      {TimeSet Partition Duration/{TotalTime Partition 0.0}}
+   end
+
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Repeat Chord N times.
+   %
+   % Pre : Chord : <extended sound>
+   %       N : <natural>
+   %
+   % Post : <flat partition>
+   %
    fun {Drone Chord N}
       if N==1 then 
 	 Chord|nil
@@ -57,15 +104,26 @@ local
       end
    end
 
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Transpose P of I semitones.
+   %
+   % Pre : P : <flat partition>
+   %       I : <integer>
+   %
+   % Post : <flat partition>
+   %
    fun {Transpose P I}
       case P of nil then nil
       [] H|T then 
 	 {Transpose H I}|{Transpose T I}
-      else
+      [] silence(duration:D) then
+	 silence(duration:D)
+      [] note(name:Name octave:Octave sharp:Boolean duration:D instrument:Instr) then
 	 local N X Y Z in
 	    N= [c c#2 d d#2 e f f#2 g g#2 a a#2 b] 
-	    if P.sharp==true then
-	       case P.name of c then X=I
+	    if Boolean==true then
+	       case Name of c then X=I
 	       [] d then X=2+I
 	       [] e then X=4+I
 	       [] f then X=5+I
@@ -88,8 +146,8 @@ local
 	    else 
 	       Y=0
 	    end
-	    case {Nth N (X mod 12)} of Name#Octave then
-	       note(name: Name
+	    case {List.nth N (X mod 12)} of A#B then
+	       note(name: A
 		    octave: P.octave + Y 
 		    sharp:true
 		    duration:P.duration
@@ -104,12 +162,22 @@ local
 	 end
       end
    end
-   
+
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Translate Partition into <flat partition>.
+   %
+   % Pre : Partition : <partition>
+   %
+   % Post : <flat partition>
+   %
    fun {PartitionToTimedList Partition}
       case Partition 
       of nil then nil
       [] X|Y then
-         {Append {PartitionToTimedList X} {PartitionToTimedList Y}}
+	 if {List.is X} then {PartitionToTimedList X}|{PartitionToTimedList Y}
+	 else {Append {PartitionToTimedList X} {PartitionToTimedList Y}}
+	 end
       [] Name#Octave then
          [{NoteToExtended Partition}]
       [] duration(1:P seconds:D) then
@@ -117,20 +185,28 @@ local
       [] stretch(1:P factor:F)then
          {TimeSet {PartitionToTimedList P} F}
       [] drone(note:C amount:N) then 
-         {Drone {PartitionToTimedList C} N}
+         {Drone {PartitionToTimedList C}.1 N}
       [] transpose(1:P semitones:I) then 
 	 {Transpose {PartitionToTimedList P} I}
       [] silence(duration:D) then
 	 [silence(duration:D)]
-      [] note(duration:D name:Name octave:Octave sharp:Boolean instrument:I) then
-	 [note(duration:D name:Name octave:Octave sharp:Boolean instrument:I)] 
+      [] note(name:Name octave:Octave sharp:Boolean duration:D instrument:I) then
+	 [note(name:Name octave:Octave sharp:Boolean duration:D instrument:I)] 
       [] Atom then 
          [{NoteToExtended Partition}]
       end
    end
 
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+   %                               MIX SECTION                                 %
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Sample FlatPartition.
+   %
+   % Pre : FlatPartition : <flat partition>
+   %
+   % Post : <samples>
+   %
    fun {Sampling FlatPartition}
       fun {SamplingChord Samples ExtendedChord}
 	 {List.map {List.foldL Samples fun {$ X Y} X + Y end 0.0} fun {$ X} X/{IntToFloat {List.length ExtendedChord}} end}
@@ -168,6 +244,15 @@ local
       end
    end
 
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Merge different musics with differents factors.
+   %
+   % Pre : P2T : function which translates <partition> into <flat partition>
+   %       M : <music with intensities>
+   %
+   % Post : <samples>
+   %
    fun {Merge P2T M}
       fun {MergeSum Lis Acc}
 	 case Lis of nil then Acc
@@ -200,16 +285,42 @@ local
       end
    end
 
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Reverse Samples.
+   %
+   % Pre : Samples : <samples>
+   %
+   % Post : <samples>
+   %
    fun {Reverse Samples}
       {List.reverse Samples}
    end
-   
+
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Repeat Samples Amount times.
+   %
+   % Pre : Amount : <integer>
+   %       Samples : <samples>
+   %
+   % Post : <samples>
+   %
    fun {Repeat Amount Samples}
       case Amount of 0 then nil
       [] N then {Append Samples {Repeat N-1 Samples}}
       end
    end
-   
+
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Repeat Samples during Duration seconds.
+   %
+   % Pre : Duration : <duration>
+   %       Samples : <samples>
+   %
+   % Post : <samples>
+   %
    fun {Loop Duration Samples}
       local MusicDuration SamplesDuration in
 	 MusicDuration = {List.length Samples}
@@ -218,6 +329,16 @@ local
       end
    end
 
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Clip Samples from Low to High.
+   %
+   % Pre : Low : <sample>
+   %       High : <sample>
+   %       Samples : <samples>
+   %
+   % Post : <samples>
+   %
    fun {Clip Low High Samples}
       {List.map Samples fun {$ X}
 			   if X < Low then Low
@@ -227,10 +348,32 @@ local
 			end}
    end
 
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Add echo with a delay of Delay and a factor of Decay to Music.
+   %
+   % Pre : P2T : function which translates <partition> into <flat partition>
+   %       Delay : <duration>
+   %       Decay : <factor>
+   %       Music : <music>
+   %
+   % Post : <samples>
+   %
    fun {Echo P2T Delay Decay Music}
       {Merge P2T [1.0#Music Decay#(partition(silence(duration:Delay))|Music)] }
    end
 
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Increase volume of music linearly during In seconds at start and decrease
+   % it linearly during Out seconds at finish.
+   %
+   % Pre : In : <duration>
+   %       Out : <duration>
+   %       Samples : <samples>
+   %
+   % Post : <samples>
+   %
    fun {Fade In Out Samples}
       fun {Arange Start Stop Step Actual}
 	 if Actual >= Stop then nil
@@ -241,11 +384,21 @@ local
       local Factors StepIn StepOut in
 	 StepIn = 1.0/(44100.0*In)
 	 StepOut = 1.0/(44100.0*Out)
-	 Factors = {Append {Arange 0.0 1.0 StepIn 0.0}  {Append {Cut In {IntToFloat {List.length Samples}}/44100.0-Out Samples} {List.reverse {Arange 0.0 1.0 StepOut 0.0}}}}
+	 Factors = {Append {Arange 0.0 1.0 StepIn 0.0}  {Append {Cut In {IntToFloat {List.length Samples}}/44100.0-Out {List.map {List.make {List.length Samples}} fun {$ X} 1.0 end }} {List.reverse {Arange 0.0 1.0 StepOut 0.0}}}}
 	 {List.zip Factors Samples fun {$ X Y} X*Y end}
       end
    end
 
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Cut Samples from Start to Finish.
+   %
+   % Pre : Start : <duration>
+   %       Finish : <duration>
+   %       Samples : <samples>
+   %
+   % Post : <samples>
+   %
    fun {Cut Start Finish Samples}
       local SamplesStart SamplesFinish in
 	 SamplesStart = {FloatToInt Start*44100.0}
@@ -256,6 +409,15 @@ local
       end
    end
 
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %
+   % Translate Music into samples.
+   %
+   % Pre : P2T : function which translates <partition> into <flat partition>
+   %       M : <music>
+   %
+   % Post : <samples>
+   %
    fun {Mix P2T Music}
       case Music of nil then nil
       [] Part|Mus then {Append {Mix P2T Part} {Mix P2T Mus}}
@@ -265,7 +427,7 @@ local
       [] merge(M) then {Merge P2T M}
       [] reverse(M) then {Reverse {Mix P2T M}}
       [] repeat(amount:A M) then {Repeat A {Mix P2T M}}
-      [] loop(duration:D M) then {Loop D {Mix P2T M}}
+      [] loop(seconds:D M) then {Loop D {Mix P2T M}}
       [] clip(low:L high:H M) then {Clip L H {Mix P2T M}}
       [] echo(delay:D decay:F M) then {Echo P2T D F M}
       [] fade(start:In out:Out M) then {Fade In Out {Mix P2T M}}
@@ -277,15 +439,9 @@ local
 
    Music = {Project.load CWD#'joy.dj.oz'}
    Start
-
-   % Uncomment next line to insert your tests.
-   % \insert '/full/absolute/path/to/your/tests.oz'
-   % !!! Remove this before submitting.
+   
 in
    Start = {Time}
-
-   % Uncomment next line to run your tests.
-   % {Test Mix PartitionToTimedList}
 
    % Add variables to this list to avoid "local variable used only once"
    % warnings.
@@ -293,7 +449,7 @@ in
    
    % Calls your code, prints the result and outputs the result to `out.wav`.
    % You don't need to modify this.
-   {Browse {Project.run Mix PartitionToTimedList Music 'out.wav'}}
+   {Browse {Project.run Mix PartitionToTimedList Music CWD#'out.wav'}}
    
    % Shows the total time to run your code.
    {Browse {IntToFloat {Time}-Start} / 1000.0}
