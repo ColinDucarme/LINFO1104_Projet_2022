@@ -51,16 +51,16 @@ local
    fun {TimeSet P F}
       case P of nil then nil 
       [] H|T then
-	 case H of X|Y then
-	    {TimeSet X F}|{TimeSet Y F}
-	 [] silence(duration:D) then
-	    silence(duration:D*F)
+	 case H of silence(duration:D) then
+	    silence(duration:D*F)|{TimeSet T F}
 	 [] note(name:Name octave:Octave sharp:Boolean duration:D instrument:I) then
 	    note(name:Name
 		 octave:Octave
 		 sharp:Boolean
 		 duration:D*F
-		 instrument: I)|{TimeSet T F}
+		 instrument:I)|{TimeSet T F}
+	 else
+	    {TimeSet H F}|{TimeSet T F}
 	 end
       end
    end
@@ -78,7 +78,10 @@ local
       fun {TotalTime X Acc}
 	 case X of nil then Acc
 	 [] H|T then
-	    if {List.is H} then {TotalTime T Acc+H.1.duration} % Case H is <extended chord>
+	    if {List.is H} then
+	       if H == nil then {TotalTime T Acc}
+	       else {TotalTime T Acc+H.1.duration} % Case H is <extended chord>
+	       end
 	    else {TotalTime T Acc+H.duration} % Case H is <extended note>
 	    end
 	 end
@@ -117,13 +120,13 @@ local
       case P of nil then nil
       [] H|T then 
 	 {Transpose H I}|{Transpose T I}
-      [] silence(duration:D) then
-	 silence(duration:D)
-      [] note(name:Name octave:Octave sharp:Boolean duration:D instrument:Instr) then
-	 local N X Y Z in
+      [] silence(duration:X) then
+	 P
+      else
+	 local N X Y in
 	    N= [c c#2 d d#2 e f f#2 g g#2 a a#2 b] 
-	    if Boolean==true then
-	       case Name of c then X=I
+	    if P.sharp==false then
+	       case P.name of c then X=I
 	       [] d then X=2+I
 	       [] e then X=4+I
 	       [] f then X=5+I
@@ -141,28 +144,56 @@ local
 	       [] b then X=12+I
 	       end
 	    end
-	    if X>11 then
-	       Y = Z div 11
-	    else 
-	       Y=0
-	    end
-	    case {List.nth N (X mod 12)} of A#B then
-	       note(name: A
-		    octave: P.octave + Y 
-		    sharp:true
-		    duration:P.duration
-		    instrument: P.instrument)
-	    [] Atom then
-	       note(name: Atom
-		    octave: P.octave+Y
-		    sharp:false 
-		    duration:P.duration
-		    instrument: P.instrument)
+	    if X>0 then 
+	       Y = X div 12
+	       case {List.nth N (X mod 12)+1} of Name#Octave then
+		  note(name: Name
+		       octave: P.octave + Y 
+		       sharp:true
+		       duration:P.duration
+		       instrument: P.instrument)
+	       [] Atom then
+		  note(name: Atom
+		       octave: P.octave+Y
+		       sharp:false 
+		       duration:P.duration
+		       instrument: P.instrument)
+	       end
+	    elseif (X mod 12 == 0) then 
+	       Y = X div 12
+	       case {List.nth N (X mod 12)+1} of Name#Octave then
+		  note(name: Name
+		       octave: P.octave + Y 
+		       sharp:true
+		       duration:P.duration
+		       instrument: P.instrument)
+	       [] Atom then
+		  note(name: Atom
+		       octave: P.octave+Y
+		       sharp:false 
+		       duration:P.duration
+		       instrument: P.instrument)
+	       end
+	    else
+	       Y = (X div 12) -1
+	       case {List.nth N (12+(X mod 12))+1} of Name#Octave then
+		  note(name: Name
+		       octave: P.octave + Y 
+		       sharp:true
+		       duration:P.duration
+		       instrument: P.instrument)
+	       [] Atom then
+		  note(name: Atom
+		       octave: P.octave+Y
+		       sharp:false 
+		       duration:P.duration
+		       instrument: P.instrument)
+	       end
 	    end
 	 end
       end
    end
-
+   
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    %
    % Translate Partition into <flat partition>.
@@ -185,7 +216,7 @@ local
       [] stretch(1:P factor:F)then
          {TimeSet {PartitionToTimedList P} F}
       [] drone(note:C amount:N) then 
-         {Drone {PartitionToTimedList C}.1 N}
+         {Drone {PartitionToTimedList [C]}.1 N}
       [] transpose(1:P semitones:I) then 
 	 {Transpose {PartitionToTimedList P} I}
       [] silence(duration:D) then
@@ -235,6 +266,8 @@ local
       [] ES|FP then if {List.is ES} then {Append {SamplingChord {Sampling ES} ES} {Sampling FP}}
 		    else {Append {Sampling ES} {Sampling FP}}
 		    end
+      [] silence(duration:D) then
+	 {List.map {List.make {FloatToInt 44100.0*D}} fun {$ X} 0.0 end}
       [] EN then
 	 local H Frequency in
 	    H = {Height EN}
@@ -439,9 +472,13 @@ local
 
    Music = {Project.load CWD#'joy.dj.oz'}
    Start
+
+   \insert '/home/colin/Documents/Cours UCL/Q4/Concepts des langages de programmation/Projet/tests.oz'
    
 in
    Start = {Time}
+
+   {Test Mix PartitionToTimedList}
 
    % Add variables to this list to avoid "local variable used only once"
    % warnings.
@@ -449,7 +486,7 @@ in
    
    % Calls your code, prints the result and outputs the result to `out.wav`.
    % You don't need to modify this.
-   {Browse {Project.run Mix PartitionToTimedList Music CWD#'out.wav'}}
+   %{Browse {Project.run Mix PartitionToTimedList Music CWD#'out.wav'}}
    
    % Shows the total time to run your code.
    {Browse {IntToFloat {Time}-Start} / 1000.0}
