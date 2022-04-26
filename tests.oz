@@ -153,6 +153,15 @@ proc {TestPartition P2T Mix}
    end
 end
 
+% Test a music of partition() of chords
+proc {TestPartitionChord P2T Mix}
+   local Actual Expected in
+      Actual = [partition([duration(seconds:FiveSamples [[a] nil]) duration(seconds:FiveSamples [silence])])]
+      Expected = [{Float.sin 2.0*3.1415926535*440.0/44100.0}/2.0 {Float.sin 2.0*3.1415926535*440.0*2.0/44100.0}/2.0 {Float.sin 2.0*3.1415926535*440.0*3.0/44100.0}/2.0 {Float.sin 2.0*3.1415926535*440.0*4.0/44100.0}/2.0 {Float.sin 2.0*3.1415926535*440.0*5.0/44100.0}/2.0 0.0 0.0 0.0 0.0 0.0]
+      {AssertEquals {Normalize {Mix P2T Actual}} {Normalize Expected} 'TestPartitionChord not passed'}
+   end
+end
+
 % Test a music of wave()
 proc {TestWave P2T Mix}
    % I listened and it was equal
@@ -237,6 +246,7 @@ end
 proc {TestMix P2T Mix}
    {TestSamples P2T Mix}
    {TestPartition P2T Mix}
+   {TestPartitionChord P2T Mix}
    {TestWave P2T Mix}
    {TestMerge P2T Mix}
    {TestReverse P2T Mix}
