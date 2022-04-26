@@ -238,9 +238,15 @@ local
    %
    % Post : <samples>
    %
-   fun {Sampling FlatPartition}
-      fun {SamplingChord Samples ExtendedChord}
-	 {List.map {List.foldL Samples fun {$ X Y} X + Y end 0.0} fun {$ X} X/{IntToFloat {List.length ExtendedChord}} end}
+   fun {Sampling P2T FlatPartition}
+      fun {SamplingChord P2T ExtendedChord}
+	 if ExtendedChord == nil then nil
+	 else
+	    local Factor in
+	       Factor = 1.0/{IntToFloat {List.length ExtendedChord}}
+	       {Merge P2T {List.map ExtendedChord fun {$ X} Factor#[partition([X])] end}}
+	    end
+	 end
       end
       fun {Height Note}
 	 case Note
@@ -263,8 +269,8 @@ local
       end
    in
       case FlatPartition of nil then nil
-      [] ES|FP then if {List.is ES} then {Append {SamplingChord {Sampling ES} ES} {Sampling FP}}
-		    else {Append {Sampling ES} {Sampling FP}}
+      [] ES|FP then if {List.is ES} then {Append {SamplingChord P2T ES} {Sampling P2T FP}}
+		    else {Append {Sampling P2T ES} {Sampling P2T FP}}
 		    end
       [] silence(duration:D) then
 	 {List.map {List.make {FloatToInt 44100.0*D}} fun {$ X} 0.0 end}
@@ -455,7 +461,7 @@ local
       case Music of nil then nil
       [] Part|Mus then {Append {Mix P2T Part} {Mix P2T Mus}}
       [] samples(S) then S
-      [] partition(P) then {Sampling {PartitionToTimedList P}}
+      [] partition(P) then {Sampling P2T {PartitionToTimedList P}}
       [] wave(Filename) then {Project.readFile CWD#Filename}
       [] merge(M) then {Merge P2T M}
       [] reverse(M) then {Reverse {Mix P2T M}}
